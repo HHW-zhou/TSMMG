@@ -17,7 +17,15 @@ pip install libsvm-official
 # Data Preparation
 
 Download data from：https://pan.baidu.com/s/1THcMLeusKGSgJpUVq83lsw?pwd=0az0 
+
 Unzip the compressed file under **TSMMG/**
+
+Unzip the compressed source files:
+
+```shell
+tar -zxvf TARGET.tar.gz
+tar -zxvf ADMET.tar.gz
+```
 
 # Training
 
