@@ -70,7 +70,7 @@ The inference time will be approximately 15 minutes for 5000 molecules (on Tesla
 The generated SMILES will be in the file './outputs/ouputs_drd2.csv'.
 
 # Cite
-```
-Xiangxiang Zeng, Peng Zhou, Jianmin Wang et al. Instruction Multi-Constraint Molecular Generation Using a Teacher-Student Large Language Model, 19 March 2024, PREPRINT (Version 1) available at Research Square [https://doi.org/10.21203/rs.3.rs-3845824/v1]
-```
+
+*  Xiangxiang Zeng, Peng Zhou, Jianmin Wang et al. Instruction Multi-Constraint Molecular Generation Using a Teacher-Student Large Language Model, 19 March 2024, PREPRINT (Version 1) available at Research Square [https://doi.org/10.21203/rs.3.rs-3845824/v1]
+
 
