@@ -1,3 +1,5 @@
+[![Apache-2.0 license](https://img.shields.io/badge/License-Apache-yellow)](https://github.com/HHW-zhou/TSMMG)
+
 # TSMMG
 Code of "Instruction Multi-Constraint Molecular Generation Using a Teacher-Student Large Language Model"
 
