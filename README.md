@@ -16,7 +16,7 @@ pip install libsvm-official
 
 # Data Preparation
 
-Download data from：https://pan.baidu.com/s/1THcMLeusKGSgJpUVq83lsw?pwd=0az0 
+Download data from：[Baidu Cloud](https://pan.baidu.com/s/1THcMLeusKGSgJpUVq83lsw?pwd=0az0) or [Google Drive](https://drive.google.com/file/d/1hO9puapPgNIm7pxJKtJHkfyeky5H6Rka/view?usp=drive_link)
 
 Unzip the compressed file under **TSMMG/**
 
