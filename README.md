@@ -16,28 +16,47 @@ pip install libsvm-official
 
 # Data Preparation
 
-Download data from：[Baidu Cloud](https://pan.baidu.com/s/1THcMLeusKGSgJpUVq83lsw?pwd=0az0) or [Google Drive](https://drive.google.com/file/d/1hO9puapPgNIm7pxJKtJHkfyeky5H6Rka/view?usp=drive_link)
+Download the necessary data for this project from either [Baidu Cloud](https://pan.baidu.com/s/1THcMLeusKGSgJpUVq83lsw?pwd=0az0) or [Google Drive](https://drive.google.com/file/d/1hO9puapPgNIm7pxJKtJHkfyeky5H6Rka/view?usp=drive_link) or [Google Drive](https://drive.google.com/file/d/1hO9puapPgNIm7pxJKtJHkfyeky5H6Rka/view?usp=drive_link). Please choose the platform that is most convenient for you.
 
-Unzip the compressed file under **TSMMG/**
+Move the downloaded TSMMG.zip file to the same directory as the TSMMG source code. For example:
+```shell
+pwd
+>> /home/gary
 
-Unzip the compressed source files:
+ls
+>> TSMMG TSMMG.zip
+```
 
+Next, unzip the compressed data files:
+```shell
+unzip TSMMG.zip
+cd TSMMG
+tar -zxvf model.tar.gz                # this is an example of trained weights
+```
+
+Finally, unzip the compressed source files:
 ```shell
 tar -zxvf TARGET.tar.gz
 tar -zxvf ADMET.tar.gz
 ```
 
 # Training
-
-```python
+To train the model, use the following command:
+```shell
 accelerate launch train.py --batch_size=16 --gpu_num=8 --epochs=2
 ```
 
 # Inference
+We've provided an example of trained weights, so you can directly run the following code for evaluation without needing to train a new model.
+
+Use the following command for evaluation:
 ```shell
 python eval.py --eval_type=[TASK_NAME] --cuda=[CUDA_NO] --eval_model_path=[SAVED_MODEL_PATH]
 ```
-**Example**
+
+In the above commands, replace [TASK_NAME] with the task you want to evaluate, [CUDA_NO] with the number of the CUDA device you want to use, and [SAVED_MODEL_PATH] with the path to the saved model you want to evaluate.
+
+Here are some examples:
 ```shell
 python eval.py --eval_type=drd2 --cuda=0 --eval_model_path='./model_save_675354_2'
 python eval.py --eval_type=drd2_qed --cuda=0 --eval_model_path='./model_save_675354_2'
