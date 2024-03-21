@@ -9,6 +9,7 @@ While various models and computational tools have been proposed for structure an
 
 # Framework of TSMMG
 
+![Model Architecture of TSMMG](https://github.com/HHW-zhou/TSMMG/blob/main/figs/figure1.png)
 
 ![examples](./figs/examples.png)
 
