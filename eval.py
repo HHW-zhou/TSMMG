@@ -13,6 +13,7 @@ from transformers import GPT2LMHeadModel,  GPT2Tokenizer, GPT2Config, GPT2LMHead
 from utils import get_parse, setup_seed, analysis_mol, metric_MOSS, write_metrics, visualize_by_html
 from load_data import load_eval_data
 
+from tqdm import tqdm
 import shutil
 from weasyprint import HTML
 
@@ -72,7 +73,7 @@ model.eval()
 # Evaluate data for one epoch
 outputs = []
 mid = 1
-for input_data in test_data:
+for input_data in tqdm(test_data):
     
     input_ids = input_data[0].unsqueeze(0).to(device)
     ref_smiles = input_data[2]
@@ -83,7 +84,8 @@ for input_data in test_data:
                         top_k=args.top_k, 
                         max_length = 512,
                         top_p=args.top_p, 
-                        num_return_sequences=args.return_num
+                        num_return_sequences = args.return_num,
+                        pad_token_id = tokenizer.eos_token_id
                     )
 
 
@@ -127,7 +129,7 @@ for input_data in test_data:
 # outputs_pd.to_csv(f'{root_dir}/output.csv', index=False)
 
 # outputs_fname = f'./outputs/{args.eval_type}_' + datetime.now().strftime('%Y%m%d%H%M%S') + '.csv'
-outputs_fname = f'./outputs/{args.eval_type}_{args.epochs}_{args.top_k}.csv'
+outputs_fname = f'./outputs/outputs_{args.eval_type}.csv'
 # outputs_fname = f'{root_dir}/output.csv'
 
 outputs_pd = pd.DataFrame(data=outputs, columns=['mid', 'smiles', 'ref_smiles'])

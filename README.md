@@ -1,6 +1,8 @@
 # TSMMG
 Code of "Instruction Multi-Constraint Molecular Generation Using a Teacher-Student Large Language Model"
 
+![examples](./figs/examples.png)
+
 # Environments
 ```shell
 conda create -n tsmmg python=3.10.9
@@ -12,11 +14,13 @@ pip install pandas
 pip install accelerate
 pip install weasyprint
 pip install libsvm-official
+pip install matplotlib
+pip install datasets
 ```
 
 # Data Preparation
 
-Download the necessary data for this project from either [Baidu Cloud](https://pan.baidu.com/s/1THcMLeusKGSgJpUVq83lsw?pwd=0az0) or [Google Drive](https://drive.google.com/file/d/1hO9puapPgNIm7pxJKtJHkfyeky5H6Rka/view?usp=drive_link) or [Google Drive](https://drive.google.com/file/d/1hO9puapPgNIm7pxJKtJHkfyeky5H6Rka/view?usp=drive_link). Please choose the platform that is most convenient for you.
+Download the necessary data for this project from either [Baidu Cloud](https://pan.baidu.com/s/10bgr9-KLR0x38BBeuvMykQ?pwd=3ezz) or [Google Drive](https://drive.google.com/file/d/1xfDh5kBjZZTY5uPc4kBq6u8Rp7ufrTO4/view?usp=drive_link). Please choose the platform that is most convenient for you.
 
 Move the downloaded TSMMG.zip file to the same directory as the TSMMG source code. For example:
 ```shell
@@ -56,9 +60,17 @@ python eval.py --eval_type=[TASK_NAME] --cuda=[CUDA_NO] --eval_model_path=[SAVED
 
 In the above commands, replace [TASK_NAME] with the task you want to evaluate, [CUDA_NO] with the number of the CUDA device you want to use, and [SAVED_MODEL_PATH] with the path to the saved model you want to evaluate.
 
-Here are some examples:
+For examples:
 ```shell
-python eval.py --eval_type=drd2 --cuda=0 --eval_model_path='./model_save_675354_2'
-python eval.py --eval_type=drd2_qed --cuda=0 --eval_model_path='./model_save_675354_2'
-python eval.py --eval_type=drd2_qed_sa --cuda=0 --eval_model_path='./model_save_675354_2'
+python eval.py --eval_type=drd2 --cuda=0 --eval_model_path='./model_save_675354_0'
 ```
+
+The inference time will be approximately 15 minutes for 5000 molecules (on Tesla V100).
+
+The generated SMILES will be in the file './outputs/ouputs_drd2.csv'.
+
+# Cite
+```
+Xiangxiang Zeng, Peng Zhou, Jianmin Wang et al. Instruction Multi-Constraint Molecular Generation Using a Teacher-Student Large Language Model, 19 March 2024, PREPRINT (Version 1) available at Research Square [https://doi.org/10.21203/rs.3.rs-3845824/v1]
+```
+
