@@ -97,16 +97,21 @@ for input_data in tqdm(test_data):
         out_str = tokenizer.decode(sample_output, skip_special_tokens=True)
         smiles = out_str.split('<|startofsmiles|>')[-1].strip()
 
-        # IsValid, QED, LogP, SAs = analysis_mol(smiles)
-
-        # outputs.append([mid, smiles, IsValid, QED, LogP, SAs, ref_smiles])
-
         IsValid, QED, LogP, SAs = analysis_mol(smiles)
 
-        outputs.append([mid, smiles, ref_smiles])
+        outputs.append([mid, smiles, IsValid, QED, LogP, SAs, ref_smiles])
+
+        # IsValid, QED, LogP, SAs = analysis_mol(smiles)
+
+        # outputs.append([mid, smiles, ref_smiles])
 
         mid = mid + 1
         
+# 输入生成的分子
+outputs_pd = pd.DataFrame(data=outputs, columns=['mid', 'smiles', 'IsValid', 'QED', 'LogP','SAs','ref_smiles'])
+outputs_pd.to_csv(f'./outputs/output_{args.eval_type}.csv', index=False)
+
+
 
 # 输出目录
 # root_dir = f'./outputs/{args.eval_type}_' + datetime.now().strftime('%Y%m%d%H%M%S')
@@ -121,20 +126,11 @@ for input_data in tqdm(test_data):
 # if not os.path.exists(html_dir):
 #     os.makedirs(html_dir)
 
-
 # valid_ratio, unique_ratio = metric_MOSS(outputs)
 
 # 输入生成的分子
 # outputs_pd = pd.DataFrame(data=outputs, columns=['mid', 'smiles', 'IsValid', 'QED', 'LogP','SAs','ref_smiles'])
-# outputs_pd.to_csv(f'{root_dir}/output.csv', index=False)
-
-# outputs_fname = f'./outputs/{args.eval_type}_' + datetime.now().strftime('%Y%m%d%H%M%S') + '.csv'
-outputs_fname = f'./outputs/outputs_{args.eval_type}.csv'
-# outputs_fname = f'{root_dir}/output.csv'
-
-outputs_pd = pd.DataFrame(data=outputs, columns=['mid', 'smiles', 'ref_smiles'])
-outputs_pd.to_csv(outputs_fname, index=False)
-
+# outputs_pd.to_csv(f'{root_dir}/output_{args.eval_type}.csv', index=False)
 
 # 输入相关参数和度量数据
 # info_list = [
@@ -151,6 +147,7 @@ outputs_pd.to_csv(outputs_fname, index=False)
 
 # 将HTML转换成PDF
 # html_file = visualize_by_html(outputs, root_dir)
+
 # pdf_file = f'{root_dir}/output.pdf'
 # HTML(html_file).write_pdf(pdf_file)
 

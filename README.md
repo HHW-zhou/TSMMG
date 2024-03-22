@@ -76,12 +76,14 @@ In the above commands, replace [TASK_NAME] with the task you want to evaluate, [
 
 For examples:
 ```shell
-python eval.py --eval_type=drd2 --cuda=0 --eval_model_path='./model_save_675354_0'
+python eval.py --eval_type=drd2_short --cuda=0 --eval_model_path='./model_save_675354_0'
 ```
 
-The inference time will be approximately 15 minutes for 5000 molecules (on Tesla V100).
+The inference time will be approximately 1 minutes for 500 molecules (on Tesla V100).
 
 The generated SMILES will be in the file './outputs/ouputs_drd2.csv'.
+
+For more information on the supported tasks, please refer to the 'TSMMG/data/eval/' directory.
 
 # Cite
 

@@ -288,7 +288,7 @@ def get_novels(smiles_list, train_smiles):
 
     return novel_list
 
-def matrix(fname, task, task_list, target_list):
+def metric(fname, task, task_list, target_list):
     train_smiles = get_train_smiles(task)
 
     df = pd.read_csv(fname)
@@ -333,62 +333,6 @@ def matrix(fname, task, task_list, target_list):
     #----------------------------------------- #
 
     return valid_ratio, unique_ratio, novel_ratio, success_ratio
-
-
-def matrix_v(fname):
-    f =  open(fname,'r')
-    lines = f.readlines()
-    print(len(lines))
-
-    predicts = []
-    truth = []
-    for line in lines:
-        if 'startofsmiles' in line:
-            # tmp = line.split('>')[1].strip()
-            tmp = line.split('<|startofsmiles|>')
-            # predicts.append(tmp[1].split(' ')[0].strip())
-            predicts.append(tmp[-1].strip())
-
-            # break
-        elif 'Reference' in line:
-            tmp = line.split('Reference smiles: ')[1].strip()
-            truth.append(tmp)
-        else:
-            pass
-
-    nums = len(truth)
-    # print(nums)
-
-    valid_num = 0
-    for i in range(nums):
-        # print(predicts[i])
-        m = Chem.MolFromSmiles(predicts[i])
-        if m is not None:
-            valid_num = valid_num + 1
-
-    # print(f"Total num: {nums}, valid num: {valid_num}, valid ratio: {valid_num/nums}")
-
-    unique_num = 0
-    equal_num = 0
-    for i in range(nums):
-        if predicts[i] != truth[i]:
-            unique_num = unique_num + 1
-        else:
-            equal_num = equal_num + 1
-
-    # print(f"Total num: {nums}, unique num: {unique_num}, unique ratio: {unique_num/nums}")
-    # print(f"Total num: {nums}, equal num: {equal_num}, equal ratio: {equal_num/nums}")
-
-    valid_unique_num = 0
-    for i in range(nums):
-        m = Chem.MolFromSmiles(predicts[i])
-        if m is not None and predicts[i] != truth[i]:
-            valid_unique_num = valid_unique_num + 1  
-
-    # print(f"Total num: {nums}, valid&unique num: {valid_unique_num}, valid&unique num ratio: {valid_unique_num/nums}")
-
-    return nums, valid_num, unique_num, equal_num, valid_unique_num
-
 
 def generate_iupac(fname):
     # out：
@@ -454,117 +398,3 @@ def get_train_smiles(task):
 
     train_smiles = df['smiles'].values
     return train_smiles
-
-def matrix_logp(fname, sv):
-    train_smiles = get_train_smiles()
-
-    f =  open(fname,'r')
-    lines = f.readlines()
-
-    desc = []
-    predicts = []
-    truth = []
-    
-    for line in lines:
-        if 'startofsmiles' in line:
-            # tmp = line.split('>')[1].strip()
-            tmp = line.split('<|startofsmiles|>')
-            # predicts.append(tmp[1].split(' ')[0].strip())
-            predicts.append(tmp[-1].strip())
-            desc.append(tmp[0].strip())
-            # break
-        elif 'Reference' in line:
-            tmp = line.split('Reference smiles: ')[1].strip()
-            truth.append(tmp)
-        else:
-            pass
-
-    nums = len(truth)
-    # print(nums)
-
-    valid_list = []
-    logps = []
-    
-    for i in range(nums):
-        smiles = predicts[i]
-        m = Chem.MolFromSmiles(predicts[i])
-        if m is not None:
-            valid_list.append(smiles)
-
-            qed=QED.properties(m)               # QED analysis
-            ALOGP = qed.ALOGP           # lipophilic if ALOGP > 0 else hydrophobic
-
-            logps.append(ALOGP)
-
-    # print(f"Total num: {nums}, valid num: {valid_num}, valid ratio: {valid_num/nums}")
-
-    novel_num = 0
-    for i in range(nums):
-        smiles = predicts[i]
-        
-        if smiles not in train_smiles:
-            novel_num = novel_num + 1
-
-    hit = 0
-    for logp in logps:
-        if abs(logp - (sv)) <= 1:
-            hit = hit + 1
-
-    sr = round(hit / len(logps),4)
-    valid_num = len(valid_list)
-    valid_unique_num = len(set(valid_list))
-
-    return nums, valid_num, novel_num, valid_unique_num, logps, sr
-
-def matrix_sa(fname):
-    # f =  open('./log/eval_gtp2_30k.log','r')
-    f =  open(fname,'r')
-    lines = f.readlines()
-
-    desc = []
-    predicts = []
-    truth = []
-
-    for line in lines:
-        if 'startofsmiles' in line:
-            tmp = line.split('<|startofsmiles|>')
-            # predicts.append(tmp[1].split(' ')[0].strip())
-            predicts.append(tmp[-1].strip())
-            desc.append(tmp[0].strip())
-            # break
-        elif 'Reference' in line:
-            tmp = line.split('Reference smiles: ')[1].strip()
-            truth.append(tmp)
-        else:
-            pass
-
-    nums = len(truth)
-    # print(nums)
-
-    sass = []
-
-    valid_num = 0
-    valid_unique_num = 0
-    for i in range(nums):
-        m = Chem.MolFromSmiles(predicts[i])
-        if m is not None:
-            valid_num = valid_num + 1
-
-            if predicts[i] != truth[i]:
-                valid_unique_num = valid_unique_num + 1
-
-            sas = sascorer.calculateScore(m)       # Synthetic Accessibility score
-
-            sass.append(sas)
-
-    # print(f"Total num: {nums}, valid num: {valid_num}, valid ratio: {valid_num/nums}")
-
-    unique_num = 0
-    equal_num = 0
-    for i in range(nums):
-        if predicts[i] != truth[i]:
-            unique_num = unique_num + 1
-        else:
-            equal_num = equal_num + 1
-
-    return nums, valid_num, unique_num, equal_num, valid_unique_num, sass

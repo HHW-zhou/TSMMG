@@ -87,42 +87,6 @@ class GPT2Dataset_eval(Dataset):
     def __getitem__(self, idx):
         return self.input_ids[idx], self.attn_masks[idx], self.smiles[idx]
 
-def get_task_train_data(tokenizer):
-
-    ftarget = './data/train/target.csv'
-    df_target = pd.read_csv(ftarget)
-
-    fadmet = './data/train/admet.csv'
-    df_admet = pd.read_csv(fadmet)
-
-
-    df = pd.concat([df_target, df_admet])
-    train_data_list = df.values
-
-    data_size = len(train_data_list)
-    
-    train_data = GPT2Dataset(train_data_list, tokenizer)
-
-    return train_data, data_size
-
-def get_task_train_data2(tokenizer):
-
-    ftarget = './data/train/target.csv'
-    df_target = pd.read_csv(ftarget)
-
-    fadmet = './data/train/admet2.csv'
-    df_admet = pd.read_csv(fadmet)
-
-
-    df = pd.concat([df_target, df_admet])
-    train_data_list = df.values
-
-    data_size = len(train_data_list)
-    
-    train_data = GPT2Dataset(train_data_list, tokenizer)
-
-    return train_data, data_size
-
 def get_kinase(args, tokenizer):
     train_type = args.train_type
 

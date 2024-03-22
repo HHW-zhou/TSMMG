@@ -132,7 +132,7 @@ def visualize_by_html(data, root_dir):
             continue
 
         mol = Chem.MolFromSmiles(smiles)
-        fname_m = f'{mid}svg'
+        fname_m = f'{mid}.svg'
         fpath_m = f'{root_dir}/fig/{fname_m}'
         url_m = f'../fig/{fname_m}'
 
@@ -229,9 +229,9 @@ def get_parse():
 
     parser.add_argument("--top_k", type=int, default=5)
     parser.add_argument("--top_p", type=float, default=0.95)
-    parser.add_argument("--return_num", type=int, default=20)
+    parser.add_argument("--return_num", type=int, default=5)
 
-    parser.add_argument("--eval_model_path", type=str, default='./model_save_675354_2')  # normal/drop/shuffle
+    parser.add_argument("--eval_model_path", type=str, default='./model_save_675354_0')  # normal/drop/shuffle
 
     args = parser.parse_args()
 
