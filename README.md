@@ -79,7 +79,7 @@ For examples:
 python eval.py --eval_type=drd2_short --cuda=0 --eval_model_path='./model_save_675354_0'
 ```
 
-The inference time will be approximately 1 munite for 500 molecules (on Tesla V100).
+The inference time will be approximately 1 minute for 500 molecules (on Tesla V100).
 
 The generated SMILES will be in the file './outputs/ouputs_drd2_short.csv'.
 

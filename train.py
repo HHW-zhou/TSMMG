@@ -183,7 +183,7 @@ for epoch_i in range(0, epochs):
     # ========================================
     #               Saving
     # ========================================
-    if epoch_i % 5 == 4:
+    if (epoch_i + 1) % 1 == 0:
         accelerator.wait_for_everyone()
         unwrapped_model = accelerator.unwrap_model(model)
         if accelerator.is_main_process:
