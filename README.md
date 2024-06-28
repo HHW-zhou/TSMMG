@@ -34,7 +34,7 @@ pip install datasets
 
 # Data Preparation
 
-Download the necessary data for this project from either [Baidu Cloud](https://pan.baidu.com/s/10bgr9-KLR0x38BBeuvMykQ?pwd=3ezz) or [Google Drive](https://drive.google.com/file/d/1xfDh5kBjZZTY5uPc4kBq6u8Rp7ufrTO4/view?usp=drive_link). Please choose the platform that is most convenient for you.
+Download the necessary data for this project from either [Baidu Cloud](https://pan.baidu.com/s/1oTrDAdJ7EgPZBvZn5MUv4w?pwd=um5g ) or [Google Drive](https://drive.google.com/file/d/1QMAWYAHHSpwnOJplghh9eAPBoLGLi78X/view?usp=sharing). Please choose the platform that is most convenient for you.
 
 Move the downloaded TSMMG.zip file to the same directory as the TSMMG source code. For example:
 ```shell
@@ -48,12 +48,16 @@ ls
 Next, unzip the compressed data files:
 ```shell
 unzip TSMMG.zip
-cd TSMMG
-tar -zxvf model.tar.gz                # this is an example of trained weights
+cd TSMMG/model_weights
+tar -zxvf smiles2iupac.tar.gz               # this is the smiles2iupac model for evaluation        
+
+cd checkpoints/gpt2_ft
+tar -zxvf checkpoint-1360000.tar.gz         # this is an example of trained weights
 ```
 
 Finally, unzip the compressed source files:
 ```shell
+cd /home/gary/TSMMG
 tar -zxvf TARGET.tar.gz
 tar -zxvf ADMET.tar.gz
 ```
@@ -61,7 +65,7 @@ tar -zxvf ADMET.tar.gz
 # Training
 To train the model, use the following command:
 ```shell
-accelerate launch train.py --batch_size=16 --gpu_num=8 --epochs=2
+accelerate launch train.py --backbone=gpt2 --learning_rate=5e-4 --training_strategy=ft --epochs=20 --quantify=no --batch_size=32
 ```
 
 # Inference
@@ -69,21 +73,28 @@ We've provided an example of trained weights, so you can directly run the follow
 
 Use the following command for evaluation:
 ```shell
-python eval.py --eval_type=[TASK_NAME] --cuda=[CUDA_NO] --eval_model_path=[SAVED_MODEL_PATH]
+CUDA_VISIBLE_DEVICES=[CUDA_NO] python eval_v2.py --backbone=gpt2 --training_strategy=ft --eval_type=[TASK_NAME] --checkpoint=1360000 --return_num=5 --quantify=no --T=1
 ```
 
-In the above commands, replace [TASK_NAME] with the task you want to evaluate, [CUDA_NO] with the number of the CUDA device you want to use, and [SAVED_MODEL_PATH] with the path to the saved model you want to evaluate.
+In the above commands, replace [CUDA_NO] with the number of the CUDA device you want to use, [TASK_NAME] with the task you want to evaluate.
 
 For examples:
 ```shell
-python eval.py --eval_type=drd2_short --cuda=0 --eval_model_path='./model_save_675354_0'
+CUDA_VISIBLE_DEVICES=0 python eval_v2.py --backbone=gpt2 --training_strategy=ft --eval_type=drd2 --checkpoint=1360000 --return_num=5 --quantify=no --T=1
 ```
 
 The inference time will be approximately 1 minute for 500 molecules (on Tesla V100).
 
-The generated SMILES will be in the file './outputs/ouputs_drd2_short.csv'.
+The generated SMILES will be in the file './outputs/ouputs_drd2.csv'.
 
 For more information on the supported tasks, please refer to the 'TSMMG/data/eval/' directory.
+
+# Evaluating the generated SMILES
+```shell
+cd /home/gary/TSMMG/metric
+python run_metric.py --backbone=gpt2 --training_strategy=ft --checkpoint=1360000 --eval_type=drd2
+```
+The evaluation results will be in the file '/home/gary/TSMMG/metric/outputs/output_gpt2_ft_drd2_mt.csv' and '/home/gary/TSMMG/metric/result/gpt2_ft_1360000_drd2-IsValid,DRD2.csv'
 
 # Cite
 

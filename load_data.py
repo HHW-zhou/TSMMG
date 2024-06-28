@@ -1,8 +1,10 @@
 import pandas as pd
 import random
-from datasets import DatasetDict
 import torch
+import datasets
+from datasets import DatasetDict
 from torch.utils.data import Dataset
+from datasets import load_dataset, concatenate_datasets
 
 import pandas as pd
 import re
@@ -14,8 +16,33 @@ import sys
 sys.path.append(os.path.join(RDConfig.RDContribDir, 'SA_Score'))
 # now you can import sascore!
 import sascorer
+import json
 
-class GPT2Dataset(Dataset):
+class TSMMGDataset_v2(Dataset):
+    def __init__(self, data_list, args, tokenizer):
+        self.data_list = []
+
+        for data in data_list:
+            desc = data['desc']
+            smiles = data['smiles']
+
+            if args.backbone == 'gpt2':
+                sample = tokenizer.bos_token + desc + '<|startofsmiles|>' + smiles + tokenizer.eos_token
+            elif args.backbone == 'llama2':
+                sample = desc + '<|startofsmiles|>' + smiles
+
+            self.data_list.append(sample)
+    
+    def __len__(self):
+        return len(self.data_list)
+
+    def __getitem__(self, idx):
+        return self.data_list[idx]
+
+    def __repr__(self):
+        return f'TSMMGDataset example: {self.data_list[0]}'
+
+class TSMMGDataset(Dataset):
     def __init__(self, data_list, tokenizer, max_length=512):
         self.tokenizer = tokenizer
         self.input_ids = []
@@ -39,7 +66,7 @@ class GPT2Dataset(Dataset):
     def __getitem__(self, idx):
         return self.input_ids[idx], self.attn_masks[idx], self.smiles[idx]
 
-class GPT2Dataset_test(Dataset):
+class TSMMGDataset_test(Dataset):
     def __init__(self, data_list, tokenizer, max_length=512):
         self.tokenizer = tokenizer
         self.input_ids = []
@@ -63,7 +90,7 @@ class GPT2Dataset_test(Dataset):
     def __getitem__(self, idx):
         return self.input_ids[idx], self.attn_masks[idx], self.smiles[idx]
 
-class GPT2Dataset_eval(Dataset):
+class TSMMGDataset_eval(Dataset):
     def __init__(self, data_list, tokenizer, max_length=512):
         self.tokenizer = tokenizer
         self.input_ids = []
@@ -87,24 +114,10 @@ class GPT2Dataset_eval(Dataset):
     def __getitem__(self, idx):
         return self.input_ids[idx], self.attn_masks[idx], self.smiles[idx]
 
-def get_kinase(args, tokenizer):
-    train_type = args.train_type
-
-    fname = f'./data/train/{train_type}.csv'
-    df = pd.read_csv(fname)
-
-    train_data_list = df.values
-
-    data_size = len(train_data_list)
-    
-    train_data = GPT2Dataset(train_data_list, tokenizer)
-
-    return train_data, data_size
-
 def get_chunks():
     chunks = []
 
-    task_list = ['1','2','3','4','5','target','admet','BTK','3CL','FGFR4','KPCD3','EP2','EP4']
+    task_list = ['1','2','3','4','5','target','admet','BTK','3CL','FGFR4','KPCD3','EP2','EP4','target','target','admet','admet']
 
     for task in task_list:
         fname = f'./data/train/{task}.csv'
@@ -113,7 +126,7 @@ def get_chunks():
 
     return chunks
 
-def load_data(args, tokenizer, chunk):
+def load_data_old(args, tokenizer, chunk):
     fetch_size = args.batch_size * args.gpu_num * 100 if args.sample_size > 50000 else args.sample_size
     # fetch_size = args.batch_size * args.gpu_num
 
@@ -124,7 +137,7 @@ def load_data(args, tokenizer, chunk):
     except Exception as e:
         return None, 0
 
-    train_data = GPT2Dataset(train_data_list, tokenizer)
+    train_data = TSMMGDataset(train_data_list, tokenizer)
 
     return train_data, fetched_size
 
@@ -138,34 +151,74 @@ def load_test_data(args, tokenizer):
 
     test_data_list = data_list[-1000:]
 
-    test_data = GPT2Dataset_test(test_data_list, tokenizer)
+    test_data = TSMMGDataset_test(test_data_list, tokenizer)
 
     return test_data
 
-def load_eval_data(args, tokenizer):
-    eval_type = args.eval_type
-    voc_num = args.voc_num
 
-    fname = './data/eval/n5.csv'
-    data_df = pd.read_csv(fname)
-    data_list = data_df.values
 
-    if eval_type == 'n':    #normal
-        test_data_list = data_list[:1000]
-    elif eval_type == 's':  #shuffle
-        test_data_list = generate_desc_shuffle(args, data_list[:1000])
-    elif eval_type == 'd':   #drop
-        test_data_list = generate_desc_drop(args, data_list[:1000])
-    elif eval_type in ['dm','dl','ds']:   
-        test_data_list = generate_desc_drop_ls(args, data_list[:1000])
-    elif eval_type in ['EP2','EP4','EPHX2nEP4','EPHX2','EP2nEP4']:   
-        test_data_list = generate_desc_ep(args, data_list[:1000])
-    else:
-        test_data_list = generate_eval_targets(args)
+def add_special_token(example, tokenizer):
+    example["text"] = tokenizer.bos_token + example['desc'] + '<|startofsmiles|>' + example['smiles'] + tokenizer.eos_token
+    return example
 
-    test_data = GPT2Dataset_eval(test_data_list, tokenizer)
+def load_data(args, tokenizer):
+    dt_list = []
 
-    return test_data
+    # task_list = ['1','2','3','4','5','target','admet','BTK','3CL','FGFR4','KPCD3','EP2','EP4']
+    task_list = ['1','2','3','4','5','target','admet','BTK','3CL','FGFR4','KPCD3','EP2','EP4','target','target','target','admet','admet','admet']
+    # task_list = ['3CL','FGFR4','KPCD3','EP2','EP4']
+
+    for task in task_list:
+        fname = f'./data/train/{task}.csv'
+        # tmp_dt = load_dataset("csv", data_files=fname, split="train", num_proc=args.num_workers, cache_dir="/mnt/ai4s_ceph_share/neogaryzhou/cache")
+        tmp_dt = load_dataset("csv", data_files=fname, split="train", num_proc=args.num_workers)
+        tmp_dt = tmp_dt.remove_columns([col for col in tmp_dt.column_names if col not in ['desc','smiles']])
+        dt_list.append(tmp_dt)
+
+    dataset = concatenate_datasets(dt_list)
+
+    # updated_dataset = dataset.map(lambda example: {"text": tokenizer.bos_token + '### Human: ' + example['desc'] + ' Give me the possible SMILES. \n### Assistant: ' + example['smiles'] + tokenizer.eos_token}, num_proc=args.num_workers)
+    updated_dataset = dataset.map(lambda example: {"text": tokenizer.bos_token + '### Human: ' + example['desc'] + ' \n### Assistant: ' + example['smiles'] + tokenizer.eos_token}, num_proc=args.num_workers)
+
+    # return dataset
+    return updated_dataset
+
+def load_eval_data(args):
+    eval_dataset = get_eval_data_from_file(args)
+
+    # if args.return_num == 1:
+    #     return datasets.Dataset.from_dict(eval_dataset[:5000])
+    # else:
+    #     return datasets.Dataset.from_dict(eval_dataset[:1000])
+    
+    return eval_dataset
+
+def load_dpo_data(args, tokenizer):
+    with open('./data/train/dpo_dataset.json','r') as f:
+        dpo_dataset_dict = json.load(f)
+
+    dataset = datasets.Dataset.from_dict(dpo_dataset_dict)
+    # updated_dataset = dataset.map(lambda example: {"prompt": '### Human: ' + example['prompt'] + ' Give me the possible SMILES. \n### Assistant: ',
+    #                                                'chosen': example['chosen'] + tokenizer.eos_token,
+    #                                                'chosen': example['rejected'] + tokenizer.eos_token})
+    
+    # updated_dataset = dataset.map(lambda example: {"prompt": '### Human: ' + example['prompt'] + ' \n### Assistant: ',
+    #                                                'chosen': example['chosen'] + tokenizer.eos_token,
+    #                                                'rejected': example['rejected'] + tokenizer.eos_token})
+    
+    updated_dataset = dataset.map(lambda example: {"prompt": '### Human: ' + example['prompt'] + ' \n### Assistant: ',
+                                                   'chosen': example['chosen'],
+                                                   'rejected': example['rejected']}, num_proc=args.num_workers)
+    
+    return updated_dataset
+
+def load_dm_data(args, tokenizer):
+    with open('./data/train/dpo_dataset.json','r') as f:
+        dpo_dataset_dict = json.load(f)
+
+    dataset = datasets.Dataset.from_dict(dpo_dataset_dict)
+    updated_dataset = dataset.map(lambda example: {"text": tokenizer.bos_token + '### Human: ' + example['prompt'] + ' \n### Assistant: ' + example['chosen'] + tokenizer.eos_token}, num_proc=args.num_workers)
+    return updated_dataset
 
 def generate_desc_shuffle(args, list_data):
     outputs = []
@@ -425,12 +478,11 @@ def generate_desc_ep(args, list_data):
 
     return outputs
 
-def generate_eval_targets(args):
+def get_eval_data_from_file(args):
     eval_type = args.eval_type
     fname = f'./data/eval/eval_{eval_type}.csv'
-    df = pd.read_csv(fname)
-    outputs = df.values
-    return outputs
+    eval_dataset = load_dataset("csv", data_files=fname, split="train", num_proc=args.num_workers)
+    return eval_dataset
 
 def get_ep_train_data(tokenizer):
     ep2_file = './data/train/EP2.csv'
@@ -449,10 +501,42 @@ def get_ep_train_data(tokenizer):
 
     data_size = len(train_data_list)
     
-    train_data = GPT2Dataset(train_data_list, tokenizer)
+    train_data = TSMMGDataset(train_data_list, tokenizer)
 
     return train_data, data_size
 
+def generate_eval_targets(args):
+    eval_type = args.eval_type
+    fname = f'./data/eval/eval_{eval_type}.csv'
+    df = pd.read_csv(fname)
+    outputs = df.values
+    return outputs
+
+
+def load_eval_data_old(args, tokenizer):
+    eval_type = args.eval_type
+    voc_num = args.voc_num
+
+    fname = './data/eval/n5.csv'
+    data_df = pd.read_csv(fname)
+    data_list = data_df.values
+
+    if eval_type == 'n':    #normal
+        test_data_list = data_list[:1000]
+    elif eval_type == 's':  #shuffle
+        test_data_list = generate_desc_shuffle(args, data_list[:1000])
+    elif eval_type == 'd':   #drop
+        test_data_list = generate_desc_drop(args, data_list[:1000])
+    elif eval_type in ['dm','dl','ds']:   
+        test_data_list = generate_desc_drop_ls(args, data_list[:1000])
+    elif eval_type in ['EP2','EP4','EPHX2nEP4','EPHX2','EP2nEP4']:   
+        test_data_list = generate_desc_ep(args, data_list[:1000])
+    else:
+        test_data_list = generate_eval_targets(args)
+
+    test_data = TSMMGDataset_eval(test_data_list, tokenizer)
+
+    return test_data
+
 if __name__ == '__main__':
-    # get_targets_and_admet(None)
     pass

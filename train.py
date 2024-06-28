@@ -1,210 +1,241 @@
+import sys
 import os
-import time
-import datetime
+# os.environ['CUDA_VISIBLE_DEVICES'] = '1,2,3'
+
+# print(os.path.abspath('../'))
+sys.path.append(os.path.abspath('../'))
+
+print(sys.path)
+
+# 指定CUDA设备号
+# os.environ["CUDA_VISIBLE_DEVICES"] = "1"  # 使用第一个GPU
 
 import torch
 import logging
+from trl import SFTTrainer, DataCollatorForCompletionOnlyLM
+from peft import LoraConfig, PeftModel, prepare_model_for_kbit_training, get_peft_model
+from transformers import BitsAndBytesConfig, TrainingArguments, Trainer
+from transformers import LlamaTokenizer, LlamaForCausalLM,  GPT2LMHeadModel,  GPT2Tokenizer
+
 from accelerate import Accelerator
-from torch.utils.data import DataLoader, RandomSampler, SequentialSampler
-from transformers import GPT2LMHeadModel,  GPT2Tokenizer, GPT2Config, GPT2LMHeadModel
-from transformers import AdamW, get_linear_schedule_with_warmup
 
-from utils import get_parse, setup_seed
-from load_data import load_data, load_test_data, get_chunks
-
-#logger
-# 第一步，创建一个logger
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)  # Log等级总开关
-# 第二步，创建一个handler，用于写入日志文件
-rq = time.strftime('%Y%m%d%H%M', time.localtime(time.time()))
-log_name = './log/train_TSMMG.log'
-logfile = log_name
-fh = logging.FileHandler(logfile, mode='w')
-fh.setLevel(logging.DEBUG)  # 输出到file的log等级的开关
-# 第三步，定义handler的输出格式
-formatter = logging.Formatter("%(asctime)s - %(filename)s[line:%(lineno)d] - %(levelname)s: %(message)s")
-fh.setFormatter(formatter)
-# 第四步，将logger添加到handler里面
-logger.addHandler(fh)
-
-#加速器
-# accelerator = Accelerator(gradient_accumulation_steps=2)
-accelerator = Accelerator()
-###################
-
-args = get_parse()
-# device = args.device
-device = accelerator.device
-setup_seed(args.seed)
-# ---------------------------------  加载 tokenizer  --------------------------------------
-# Load the GPT tokenizer.
-tokenizer = GPT2Tokenizer.from_pretrained('gpt2', 
-                    bos_token='<|startoftext|>', 
-                        eos_token='<|endoftext|>', 
-                            pad_token='<|pad|>',
-                                special_tokens=["<|startofsmiles|>"]) #gpt2-medium
-
-# 获得测试数据
-test_data = load_test_data(args, tokenizer)
-test_dataloader = DataLoader(test_data, sampler = SequentialSampler(test_data), batch_size = args.batch_size, shuffle=False)
-# ---------------------------------  加载配置文件  --------------------------------------
-configuration = GPT2Config.from_pretrained('gpt2', output_hidden_states=False)
-# ---------------------------------  加载模型  --------------------------------------
-model = GPT2LMHeadModel.from_pretrained("gpt2", config=configuration)
-model.resize_token_embeddings(len(tokenizer))
-model.to(device)
-# ---------------------------------  训练参数  --------------------------------------
-epochs = args.epochs
-learning_rate = 5e-4
-warmup_steps = 1e2
-epsilon = 1e-8
-
-optimizer = AdamW(model.parameters(),
-                  lr = learning_rate,
-                  eps = epsilon
-                )
-
-batch_num = int(args.sample_size /args.gpu_num / args.batch_size) + 1           # 对于每一个epoch，有这么多batch
-total_steps = batch_num * epochs                                                # [number of batches] x [number of epochs]
-
-scheduler = get_linear_schedule_with_warmup(optimizer, 
-                                            num_warmup_steps = warmup_steps, 
-                                            num_training_steps = total_steps)
+from load_data import load_data
+from utils import get_parse, setup_seed, setLogger
+# from accelerate.utils import DummyOptim, DummyScheduler
 
 
-def format_time(elapsed):
-    return str(datetime.timedelta(seconds=int(round((elapsed)))))
-
-
-model, optimizer, test_dataloader = accelerator.prepare(model, optimizer, test_dataloader)
-# model, optimizer, train_dataloader, test_dataloader = accelerator.prepare(model, optimizer, train_dataloader, test_dataloader)
-
-total_t0 = time.time()
-training_stats = []
-
-for epoch_i in range(0, epochs):
-
-    logger.info("")
-    logger.info('======== Epoch {:} / {:} ========'.format(epoch_i + 1, epochs))
-    logger.info('Training...')
-
-    remaining_epoch = args.epochs - epoch_i - 1
-    # ========================================
-    #               Training
-    # ========================================
-    total_train_loss = 0
-    model.train()
-
-    total_size = 0
-
-    # ---------------------------------  读取数据  --------------------------------------
-    # 获得训练数据句柄
-    chunks = get_chunks()
-    passed_batch = 0
-    logger.info('Number of  chunks =====> {}'.format(len(chunks)))
-
-    for chunk in chunks:                                                        # 循环读取所有文件句柄
-        accelerator.free_memory()
-        while True:                                                             # 循环读取chunk内所有数据
-            if total_size >= args.sample_size:                                  # 中止条件：已使用的训练数据大小大于指定训练数据大小
-                break
-
-            train_data, fetched_size = load_data(args, tokenizer, chunk)
-            total_size = total_size + fetched_size
-
-            if train_data is None:                                              # 中止条件：当前chunk无数据，进入下一个chunk
-                break
-
-            # 开始当前chunk训练
-            logger.info(' Number of trained data ========> {}'.format(total_size))
-            t0 = time.time()  # 计算每个chunk需要的时间
-
-            train_dataloader = DataLoader(train_data, sampler = RandomSampler(train_data), batch_size = args.batch_size, shuffle=False)
-            train_dataloader = accelerator.prepare(train_dataloader)
-
-            for step, batch in enumerate(train_dataloader):
-
-                b_input_ids = batch[0].to(device)
-                b_labels = batch[0].to(device)
-                b_masks = batch[1].to(device)
-
-                model.zero_grad()        
-
-                outputs = model(  b_input_ids,
-                                labels=b_labels, 
-                                attention_mask = b_masks,
-                                token_type_ids=None
-                                )
-
-                loss = outputs[0]  
-
-                batch_loss = loss.item()
-                total_train_loss += batch_loss
-
-                accelerator.backward(loss)
-                optimizer.step()
-                scheduler.step()
-
-                passed_batch = passed_batch + 1
-
-            # Calculate the average loss over all of the batches.
-            # avg_train_loss = total_train_loss / batch_num 
-            avg_train_loss = total_train_loss / passed_batch 
-            
-            # Measure how long this epoch took.
-            time_elapse = time.time() - t0
-            time_for_each_batch = time_elapse/step
-            training_time = format_time(time_elapse)
-
-            # remaining batches and time
-            remaining_batches = batch_num - passed_batch                                # 当前epoch剩余的batch数
-            remaining_time = format_time(remaining_batches * time_for_each_batch)       # 当前epoch剩余的时间
-
-            total_remaining_time = format_time(remaining_batches * time_for_each_batch * remaining_epoch)
-
-            if accelerator.is_main_process:
-                logger.info("\n")
-                logger.info(f"Current at the {epoch_i}-th epoch.")
-                logger.info(" Average training loss: {0:.2f}".format(avg_train_loss))
-                logger.info(" Training epoch took: {:}".format(training_time))
-                logger.info(" Totally {:} needed.".format(remaining_time))
-            
-    training_stats.append(
-        {
-            'epoch': epoch_i + 1,
-            'Training Loss': avg_train_loss,
-            # 'Valid. Loss': avg_val_loss,
-            'Training Time': training_time,
-            # 'Validation Time': validation_time
-        }
+def print_trainable_parameters(model, logger):
+    """
+    Prints the number of trainable parameters in the model.
+    """
+    trainable_params = 0
+    all_param = 0
+    for _, param in model.named_parameters():
+        all_param += param.numel()
+        if param.requires_grad:
+            trainable_params += param.numel()
+    logger.info(
+        f"trainable params: {trainable_params} || all params: {all_param} || trainable%: {100 * trainable_params / all_param}"
     )
 
-    # ========================================
-    #               Saving
-    # ========================================
-    if (epoch_i + 1) % 1 == 0:
-        accelerator.wait_for_everyone()
-        unwrapped_model = accelerator.unwrap_model(model)
-        if accelerator.is_main_process:
-            output_dir = f'./model_save_{args.sample_size}_{epoch_i+1}/'
-            logger.info("Saving model to %s" % output_dir)
 
-            # Create output directory if needed
-            if not os.path.exists(output_dir):
-                os.makedirs(output_dir)
+accelerator = Accelerator()
 
-            unwrapped_model.save_pretrained(output_dir, save_function=accelerator.save, state_dict=accelerator.get_state_dict(model))
+# print("===========> ", accelerator.device)
+# print("===========> ", accelerator.device)
 
-            # model_to_save = model.module if hasattr(model, 'module') else model  # Take care of distributed/parallel training
-            # model_to_save.save_pretrained(output_dir)
-            tokenizer.save_pretrained(output_dir)
-            logger.info("Saving success!")
+#logger
+setLogger()
+logger = logging.getLogger()
 
-logger.info("\n")
-logger.info("Training complete!")
-logger.info("Total training took {:} (h:mm:ss)".format(format_time(time.time()-total_t0)))
+args = get_parse()
+setup_seed(args.seed)
 
+# 下载并加载分词器
+if args.backbone == 'llama-7b':
+    # 模型名称
+    # model_name_or_path = "model_weights/backbones/Llama-2-7b-chat-hf"
+    model_name_or_path = args.model_name_or_path
+    # model_name_or_path = "model_weights/checkpoints/llama-7b_lora_ft_v0/checkpoint-320000-merged"
+    tokenizer = LlamaTokenizer.from_pretrained(model_name_or_path)
+    tokenizer.add_special_tokens({"pad_token":"[PAD]"})
+    # smiles_token = "<|startofsmiles|>"                    # 防止该标志被分解成多个token
+    # tokenizer.add_tokens([smiles_token])
+    tokenizer.padding_side = 'right'                       # decoder only 一般pad在左边，encoder pad在右边
 
+    if args.quantify == '4bit':
+        logger.info("Load model with 4bit quantization ...... ")
+        compute_dtype = getattr(torch, "float16")
+        bnb_config = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_quant_type="fp4",
+                bnb_4bit_compute_dtype=compute_dtype,
+                bnb_4bit_use_double_quant=True,
+        )
+        model = LlamaForCausalLM.from_pretrained(model_name_or_path, quantization_config=bnb_config, device_map={"": accelerator.device})
+    elif args.quantify == '8bit':
+        logger.info("Load model with 8bit quantization ...... ")
+        bnb_config = BitsAndBytesConfig(
+                load_in_8bit=True
+        )
+        model = LlamaForCausalLM.from_pretrained(model_name_or_path, quantization_config=bnb_config, device_map={"": accelerator.device})
+    else:
+        logger.info("Load model without quantization ...... ")
+        model = LlamaForCausalLM.from_pretrained(model_name_or_path, device_map={"": accelerator.device})
 
+    model.resize_token_embeddings(len(tokenizer))   #Resize the embeddings
+    model.config.pad_token_id = tokenizer.pad_token_id   #Configure the pad token in the model
+    model.config.use_cache = False # Gradient checkpointing is used by default but not compatible with caching
 
+    peft_config = LoraConfig(
+        lora_alpha=args.lora_alpha,
+        lora_dropout=0.05,
+        r=args.lora_rank,
+        bias="none",
+        task_type="CAUSAL_LM",
+        target_modules= ["q_proj", "k_proj", "v_proj", "o_proj","gate_proj","down_proj","up_proj","lm_head"],
+        # target_modules= ["q_proj", "k_proj", "v_proj", "o_proj"],
+    )
+
+elif args.backbone == 'gpt2':
+    # 模型名称
+    # model_name_or_path = "model_weights/backbones/gpt2"
+    model_name_or_path = args.model_name_or_path
+    tokenizer = GPT2Tokenizer.from_pretrained(model_name_or_path)
+    # smiles_token = "<|startofsmiles|>"                    # 防止该标志被分解成多个token
+    # tokenizer.add_tokens([smiles_token])
+    tokenizer.padding_side = 'right'                       # decoder only 一般pad在左边，encoder pad在右边
+
+    if args.quantify == '4bit':
+        logger.info("Load model with 4bit quantization ...... ")
+        compute_dtype = getattr(torch, "float16")
+        bnb_config = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_quant_type="fp4",
+                bnb_4bit_compute_dtype=compute_dtype,
+                bnb_4bit_use_double_quant=True,
+        )
+        model = GPT2LMHeadModel.from_pretrained(model_name_or_path, quantization_config=bnb_config, device_map={"": accelerator.device})
+    elif args.quantify == '8bit':
+        logger.info("Load model with 8bit quantization ...... ")
+        bnb_config = BitsAndBytesConfig(
+                load_in_8bit=True
+        )
+        model = GPT2LMHeadModel.from_pretrained(model_name_or_path, quantization_config=bnb_config, device_map={"": accelerator.device})
+    else:
+        logger.info("Load model without quantization ...... ")
+        model = GPT2LMHeadModel.from_pretrained(model_name_or_path, device_map={"": accelerator.device})
+
+    
+    model.resize_token_embeddings(len(tokenizer))   # #Resize the embeddings
+    model.config.pad_token_id = tokenizer.pad_token_id  #Configure the pad token in the model
+    model.config.use_cache = False # Gradient checkpointing is used by default but not compatible with caching
+
+    peft_config = LoraConfig(
+        lora_alpha=args.lora_alpha,
+        lora_dropout=0.1,
+        r=args.lora_rank,
+        bias="none",
+        task_type="CAUSAL_LM",
+        # target_modules= ["q_proj", "k_proj", "v_proj", "o_proj"]
+    )
+
+# model = prepare_model_for_kbit_training(model, use_gradient_checkpointing = True)
+
+# # Creates Dummy Optimizer if `optimizer` was specified in the config file else creates Adam Optimizer
+# optimizer_cls = (
+#     torch.optim.AdamW
+#     if accelerator.state.deepspeed_plugin is None
+#     or "optimizer" not in accelerator.state.deepspeed_plugin.deepspeed_config
+#     else DummyOptim
+# )
+# optimizer = optimizer_cls(optimizer_grouped_parameters, lr=args.learning_rate)
+
+# # Creates Dummy Scheduler if `scheduler` was specified in the config file else creates `args.lr_scheduler_type` Scheduler
+# if (
+#     accelerator.state.deepspeed_plugin is None
+#     or "scheduler" not in accelerator.state.deepspeed_plugin.deepspeed_config
+# ):
+#     lr_scheduler = get_scheduler(
+#         name=args.lr_scheduler_type,
+#         optimizer=optimizer,
+#         num_warmup_steps=args.num_warmup_steps,
+#         num_training_steps=args.max_train_steps,
+#     )
+# else:
+#     lr_scheduler = DummyScheduler(
+#         optimizer, total_num_steps=args.max_train_steps, warmup_num_steps=args.num_warmup_steps
+#     )
+
+logger.info("Loading data ... ")
+dataset = load_data(args, tokenizer)
+logger.info(f"Data loaded, data length: {len(dataset)}")
+
+training_arguments = TrainingArguments(
+        # device='cuda:0',
+        do_eval=False,
+        output_dir=args.output_dir,
+        evaluation_strategy="no",
+        per_device_train_batch_size=args.batch_size,
+        gradient_accumulation_steps=args.gradient_accumulation_steps,
+        per_device_eval_batch_size=args.batch_size,
+        log_level="debug",
+        optim="paged_adamw_32bit",
+        save_steps=args.gradient_accumulation_steps*args.save_freq,
+        logging_steps=args.gradient_accumulation_steps*args.save_freq,          # logging 频率和参数更新频率保持一致
+        eval_steps=args.gradient_accumulation_steps*args.save_freq,
+        fp16=args.fp16,
+        bf16=args.bf16,
+        learning_rate=args.learning_rate,
+        max_grad_norm=0.3,
+        num_train_epochs=args.epochs,
+        # max_steps=1, #remove this
+        warmup_ratio=0.03,
+        lr_scheduler_type=args.lr_scheduler_type,                   # constant/cosine
+        report_to= args.report_to,
+        # gradient_checkpointing_kwargs={'use_reentrant':False},
+        gradient_checkpointing = False,   # If True, use gradient checkpointing to save memory at the expense of slower backward pass.
+        ddp_find_unused_parameters = False, #When using distributed training, the value of the flag find_unused_parameters passed to DistributedDataParallel. Will default to False if gradient checkpointing is used, True otherwise.
+        # fsdp = 'full_shard'
+        # deepspeed='/mnt/ai4s_ceph_share/neogaryzhou/TSMMG/scripts/zero_stage3_config.json'
+)
+
+def formatting_prompts_func(example):
+    output_texts = []
+    for i in range(len(example['desc'])):
+        # text = f"### Human: {example[i]['desc']} Give me the possible SMILES. ### Assistant: {example[i]['smiles']}"
+        # text = f"### Human: {example['desc'][i]} Give me the possible SMILES. \n### Assistant: {example['smiles'][i]}"
+        text = f"### Human: {example['desc'][i]} \n### Assistant: {example['smiles'][i]}"
+        # print(text)
+        output_texts.append(text)
+    return output_texts
+
+response_template = "\n### Assistant:"
+collator = DataCollatorForCompletionOnlyLM(response_template, tokenizer=tokenizer)
+
+trainer = SFTTrainer(
+        model=model,
+        tokenizer=tokenizer,
+        args=training_arguments,
+        train_dataset=dataset,
+        dataset_text_field="text",
+        max_seq_length=args.seq_length,
+        dataset_num_proc=args.num_workers,                          # The number of workers to use to tokenize the data. Only used when packing=False. Defaults to None.
+        # formatting_func=formatting_prompts_func,
+        data_collator=collator if  args.training_strategy in ['sft','lora_sft'] else None,
+        peft_config=peft_config if args.training_strategy in ['lora_sft','lora_ft'] else None,
+        packing=False,
+)
+
+print_trainable_parameters(trainer.model, logger)
+
+logger.info("Training...")
+# trainer.train(resume_from_checkpoint=True)
+# trainer.train(resume_from_checkpoint="model_weights/checkpoints/gpt2_ft/checkpoint-340000")
+trainer.train()
+
+logger.info("Saving last checkpoint of the model")
+trainer.model.save_pretrained(os.path.join(args.output_dir, "checkpoint-final"))
+tokenizer.save_pretrained(os.path.join(args.output_dir, "checkpoint-final"))
+
+sys.exit()
