@@ -125,7 +125,7 @@ def get_bbbs(df, mol_list):
         maccs_list.append(maccs)
         y.append(1)
 
-    model = svm_load_model(f'/mnt/ai4s_ceph_share/neogaryzhou/TSMMG/ADMET/models/A_BBB_I')
+    model = svm_load_model(f'../ADMET/models/A_BBB_I')
     labels = model.get_labels()
     idx = labels.index(1)
     p_label, p_acc, p_val = svm_predict(y, maccs_list, model, '-b 1')
@@ -141,7 +141,7 @@ def get_hias(df, mol_list):
         maccs_list.append(maccs)
         y.append(1)
 
-    model = svm_load_model(f'/mnt/ai4s_ceph_share/neogaryzhou/TSMMG/ADMET/models/A_HIA_I')
+    model = svm_load_model(f'../ADMET/models/A_HIA_I')
     labels = model.get_labels()
     idx = labels.index(1)
     p_label, p_acc, p_val = svm_predict(y, maccs_list, model, '-b 1')
@@ -171,7 +171,7 @@ def get_scores(clf, mol_list):
     return np.float32(scores)
 
 def get_drd2s(df, mol_list):
-    clf_path = f'/mnt/ai4s_ceph_share/neogaryzhou/TSMMG/target/drd2.pkl'
+    clf_path = f'../target/drd2.pkl'
 
     with open(clf_path, "rb") as f:
         clf = pickle.load(f)
@@ -180,7 +180,7 @@ def get_drd2s(df, mol_list):
     return scores
 
 def get_gsk3s(df, mol_list):
-    clf_path = f'/mnt/ai4s_ceph_share/neogaryzhou/TSMMG/target/gsk3.pkl'
+    clf_path = f'../target/gsk3.pkl'
 
     with open(clf_path, "rb") as f:
         clf = pickle.load(f)
@@ -370,22 +370,10 @@ def metric(fname, task, task_list, target_list):
     return valid_ratio, unique_ratio, novel_ratio, success_ratio, diversity
 
 def get_train_smiles(task):
-    # if task == 'normal':
-    #     df_list = []
-    #     for i in range(1,6):
-    #         fname = f"/mnt/ai4s_ceph_share/neogaryzhou/TSMMG/data/train/{i}.csv"
-    #         df = pd.read_csv(fname)
-    #         df_list.append(df)
-
-    #     df = pd.concat(df_list)
-    # else: 
-    #     fname = f"/mnt/ai4s_ceph_share/neogaryzhou/TSMMG/data/train/{task}.csv"
-    #     df = pd.read_csv(fname)
-
     task_list = ['1','2','3','4','5','target','admet','BTK','3CL','FGFR4','KPCD3','EP2','EP4']
     df_list = []
     for task in task_list:
-        fname = f"/mnt/ai4s_ceph_share/neogaryzhou/TSMMG/data/train/{task}.csv"
+        fname = f"../data/train/{task}.csv"
         tmp_df = pd.read_csv(fname)
         df_list.append(tmp_df)
 
