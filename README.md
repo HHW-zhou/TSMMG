@@ -97,7 +97,17 @@ python run_metric.py --backbone=gpt2 --training_strategy=ft --checkpoint=1360000
 The evaluation results will be in the file '/home/gary/TSMMG/metric/outputs/output_gpt2_ft_drd2_mt.csv' and '/home/gary/TSMMG/metric/result/gpt2_ft_1360000_drd2-IsValid,DRD2.csv'
 
 # Cite
-
-*  Xiangxiang Zeng, Peng Zhou, Jianmin Wang et al. Instruction Multi-Constraint Molecular Generation Using a Teacher-Student Large Language Model, 19 March 2024, PREPRINT (Version 1) available at Research Square [https://doi.org/10.21203/rs.3.rs-3845824/v1]
+```latex
+@article{zhou2025instruction,
+  title={Instruction multi-constraint molecular generation using a teacher-student large language model},
+  author={Zhou, Peng and Wang, Jianmin and Li, Chunyan and Wang, Zixu and Liu, Yiping and Sun, Siqi and Lin, Jianxin and Wei, Leyi and Cai, Xibao and Lai, Houtim and others},
+  journal={BMC biology},
+  volume={23},
+  number={1},
+  pages={105},
+  year={2025},
+  publisher={Springer}
+}
+```
 
 
